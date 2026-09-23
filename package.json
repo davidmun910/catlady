@@ -1,0 +1,16 @@
+{
+  "name": "catlady",
+  "version": "1.0.0",
+  "description": "Cat Lady (the AEG card game by Josh Wood) as a live two-to-four player web game",
+  "type": "module",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "test": "node --test test/*.test.js"
+  },
+  "engines": { "node": ">=18" },
+  "dependencies": {
+    "ws": "^8.18.0"
+  },
+  "license": "MIT"
+}
