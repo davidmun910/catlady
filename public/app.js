@@ -1,6 +1,6 @@
 import { CARDS, FOOD_TYPES, TOY_TYPES } from './cards.js';
 import { LINES, lineSlots, sameLine, availableLines, catFedInfo, canAssign, lineName } from './engine.js';
-import { detectMode, ServerTransport, PeerHostTransport, PeerGuestTransport } from './net.js';
+import { detectMode, relayBase, ServerTransport, PeerHostTransport, PeerGuestTransport } from './net.js';
 import { makeCode } from './room.js';
 
 const $ = sel => document.querySelector(sel);
@@ -26,7 +26,7 @@ const ui = { mode: null, code: null, transport: null, status: 'connecting', snap
 
 // ---------- boot ----------
 async function boot() {
-  ui.mode = await detectMode();
+  ui.mode = await detectMode(n => { app.innerHTML = `<div class="loading"><div style="font-size:22px">🐈</div><p>Waking up the game server… (${n * 10}s)</p><p class="tiny muted">Free hosting naps when nobody is playing. This usually takes under a minute.</p></div>`; });
   const code = (new URLSearchParams(location.search).get('room') || '').toUpperCase();
   if (/^[A-Z0-9]{5}$/.test(code)) connect(code); else renderHome();
 }
@@ -362,7 +362,7 @@ app.addEventListener('click', async e => {
     case 'create': {
       saveName(); if (!myName) return toast('Please enter your name first.', true);
       let code;
-      if (ui.mode === 'server') { try { code = (await (await fetch('api/new')).json()).code; } catch { return toast('Could not reach the server.', true); } }
+      if (ui.mode === 'server') { try { code = (await (await fetch(relayBase() + '/api/new')).json()).code; } catch { return toast('Could not reach the server.', true); } }
       else { code = makeCode(); store.set('catlady:host:' + code, '1'); }
       history.pushState({}, '', '?room=' + code); connect(code); break;
     }

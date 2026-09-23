@@ -31,10 +31,11 @@ function getRoom(code, create) {
 
 const server = http.createServer((req, res) => {
   const url = new URL(req.url, 'http://x');
-  if (url.pathname === '/api/ping') { res.writeHead(200, { 'content-type': 'application/json' }); return res.end(JSON.stringify({ ok: true, mode: 'server' })); }
+  const cors = { 'access-control-allow-origin': '*', 'content-type': 'application/json' };
+  if (url.pathname === '/api/ping') { res.writeHead(200, cors); return res.end(JSON.stringify({ ok: true, mode: 'server' })); }
   if (url.pathname === '/api/new') {
     let code; do code = makeCode(); while (rooms.has(code));
-    getRoom(code, true); res.writeHead(200, { 'content-type': 'application/json' }); return res.end(JSON.stringify({ code }));
+    getRoom(code, true); res.writeHead(200, cors); return res.end(JSON.stringify({ code }));
   }
   let file = url.pathname === '/' ? '/index.html' : url.pathname;
   file = path.normalize(file).replace(/^(\.\.[/\\])+/, '');

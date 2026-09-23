@@ -19,11 +19,15 @@ directly over WebRTC (signalling through the free public PeerJS server, with Goo
 * Guests reconnect automatically and keep their seat (a token is saved in their browser).
 * On rare networks where WebRTC cannot connect (some mobile carriers), use option 2.
 
-### 2. Node server (WebSocket rooms)
+### 2. Node server (WebSocket rooms) — recommended
 ```
 npm install
 npm start          # http://localhost:3000   (PORT env var to change)
 ```
+One-click on Render: sign in at https://dashboard.render.com with GitHub, choose **New → Blueprint**, pick this repo;
+`render.yaml` sets everything up (free plan). Then either share the Render URL directly, or put it in
+`public/config.js` as `window.CATLADY_RELAY` so the GitHub Pages link uses the server as its relay (the page
+wakes a sleeping free instance automatically).
 Deploy the repo as a Node web service to Render, Railway, Fly.io, a VPS, etc. Rooms live in memory and are
 mirrored to `data/rooms.json`, so a restart does not lose a game in progress. The page detects the server
 automatically (`/api/ping`) and uses WebSockets instead of WebRTC.

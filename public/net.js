@@ -3,12 +3,30 @@
 //  - PeerTransport: WebRTC via PeerJS, the host's browser runs the Room (static hosting, no server)
 import { Room } from './room.js';
 
-export async function detectMode() {
+// Where the relay server lives: this origin (when server.js serves the page) or window.CATLADY_RELAY (a remote server).
+export function relayBase() {
+  const r = (typeof window !== 'undefined' && window.CATLADY_RELAY) ? String(window.CATLADY_RELAY).replace(/\/+$/, '') : '';
+  return r || location.origin + location.pathname.replace(/[^/]*$/, '').replace(/\/$/, '');
+}
+async function ping(base, ms) {
   try {
-    const ctl = new AbortController(); const t = setTimeout(() => ctl.abort(), 2500);
-    const r = await fetch('api/ping', { signal: ctl.signal, cache: 'no-store' }); clearTimeout(t);
-    if (r.ok) { const j = await r.json(); if (j.ok) return 'server'; }
-  } catch { /* static hosting */ }
+    const ctl = new AbortController(); const t = setTimeout(() => ctl.abort(), ms);
+    const r = await fetch(base + '/api/ping', { signal: ctl.signal, cache: 'no-store' }); clearTimeout(t);
+    if (r.ok) { const j = await r.json(); if (j.ok) return true; }
+  } catch { /* not there */ }
+  return false;
+}
+// Resolves 'server' or 'p2p'. A remote relay may be asleep (free hosting): keep knocking for a while and report progress.
+export async function detectMode(onWait) {
+  const remote = !!(typeof window !== 'undefined' && window.CATLADY_RELAY);
+  if (!remote) return (await ping(relayBase(), 2500)) ? 'server' : 'p2p';
+  const deadline = Date.now() + 90000;
+  let n = 0;
+  while (Date.now() < deadline) {
+    if (await ping(relayBase(), 8000)) return 'server';
+    if (onWait) onWait(++n);
+    await new Promise(r => setTimeout(r, 2000));
+  }
   return 'p2p';
 }
 
@@ -22,9 +40,7 @@ export class ServerTransport extends Emitter {
   constructor(code) { super(); this.code = code; this.ws = null; this.closed = false; this.retry = 1000; this.connect(); }
   connect() {
     if (this.closed) return;
-    const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const base = location.pathname.replace(/[^/]*$/, '');
-    const ws = new WebSocket(`${proto}//${location.host}${base}ws?room=${this.code}`);
+    const ws = new WebSocket(relayBase().replace(/^http/, 'ws') + `/ws?room=${this.code}`);
     this.ws = ws;
     ws.onopen = () => { this.retry = 1000; this.emit('status', 'connected'); };
     ws.onmessage = e => { try { this.emit('message', JSON.parse(e.data)); } catch { /* ignore */ } };
