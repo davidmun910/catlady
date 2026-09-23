@@ -83,29 +83,35 @@ export class PeerHostTransport extends Emitter {
 
 // A guest browser: connects to the host's peer id.
 export class PeerGuestTransport extends Emitter {
-  constructor(code) { super(); this.code = code; this.closed = false; this.conn = null; this.open(); }
+  constructor(code) { super(); this.code = code; this.closed = false; this.conn = null; this.failures = 0; this.open(); }
   open() {
     if (this.closed) return;
     const peer = new Peer(PEER_OPTS);
     this.peer = peer;
+    this.emit('status', 'connecting');
     peer.on('open', () => {
+      this.emit('status', 'connecting-host');
       const conn = peer.connect(PEER_PREFIX + this.code, { reliable: true });
       this.conn = conn;
       let opened = false;
-      conn.on('open', () => { opened = true; this.emit('status', 'connected'); });
+      conn.on('open', () => { opened = true; this.failures = 0; this.emit('status', 'connected'); });
       conn.on('data', msg => { if (msg && typeof msg === 'object') this.emit('message', msg); });
-      conn.on('close', () => this.lost());
-      conn.on('error', () => this.lost());
-      setTimeout(() => { if (!opened && !this.closed) this.lost(); }, 8000);
+      conn.on('close', () => this.lost('reconnecting'));
+      conn.on('error', () => this.lost('reconnecting'));
+      setTimeout(() => { if (!opened && !this.closed) { this.failures++; this.lost(this.failures >= 2 ? 'blocked' : 'reconnecting'); } }, 15000);
     });
-    peer.on('error', err => { if (!this.closed) { this.emit('status', err.type === 'peer-unavailable' ? 'waiting-host' : 'reconnecting'); this.lost(); } });
+    peer.on('error', err => {
+      if (this.closed) return;
+      if (err.type === 'peer-unavailable') this.lost('waiting-host');
+      else this.lost(err.type === 'network' || err.type === 'server-error' ? 'no-signal' : 'reconnecting');
+    });
   }
-  lost() {
+  lost(status) {
     if (this.closed || this.retrying) return;
     this.retrying = true;
-    this.emit('status', 'reconnecting');
+    this.emit('status', status);
     try { this.peer?.destroy(); } catch { /* ignore */ }
-    setTimeout(() => { this.retrying = false; this.open(); }, 3000);
+    setTimeout(() => { this.retrying = false; this.open(); }, status === 'waiting-host' ? 4000 : 3000);
   }
   send(msg) { if (this.conn && this.conn.open) this.conn.send(msg); }
   close() { this.closed = true; try { this.peer?.destroy(); } catch { /* ignore */ } }

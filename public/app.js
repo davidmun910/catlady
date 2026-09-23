@@ -132,12 +132,19 @@ function cubesHtml(food, showZero = false) {
 function render() {
   if (!ui.code) return renderHome();
   const snap = ui.snap;
-  if (!snap) { app.innerHTML = `<div class="loading">${statusText()}</div>`; return; }
+  if (!snap) { app.innerHTML = `<div class="loading"><div style="font-size:22px">🐈</div><p>Room <b>${esc(ui.code)}</b></p><p>${statusText()}</p><p class="tiny muted">Keep this page open. <a href="${esc(location.pathname)}">Back to start</a></p></div>`; return; }
   if (!snap.state) return renderLobby(snap);
   renderGame(snap);
 }
 function statusText() {
-  return { connecting: 'Connecting…', connected: 'Connected', reconnecting: 'Reconnecting…', 'waiting-host': 'Waiting for the host to open the game…', taken: 'Room already open elsewhere' }[ui.status] || ui.status;
+  return {
+    connecting: 'Connecting…', connected: 'Connected', reconnecting: 'Reconnecting…',
+    'connecting-host': 'Found the host, opening a direct connection…',
+    'waiting-host': 'The host is not online right now. This page keeps trying; ask them to open their game tab.',
+    'no-signal': 'Cannot reach the matchmaking server. Check your internet connection; some school or office networks block it.',
+    blocked: 'Your two networks are not letting a direct connection through. Still trying… If it keeps failing, try a different Wi-Fi or mobile data on one side, or use the server version of the game.',
+    taken: 'Room already open elsewhere',
+  }[ui.status] || ui.status;
 }
 function shareLink() { const u = new URL(location.href); u.search = '?room=' + ui.code; return u.toString(); }
 

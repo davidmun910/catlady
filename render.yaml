@@ -1,0 +1,9 @@
+services:
+  - type: web
+    name: catlady
+    runtime: node
+    plan: free
+    buildCommand: npm install
+    startCommand: npm start
+    healthCheckPath: /api/ping
+    autoDeploy: true
