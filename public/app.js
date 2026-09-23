@@ -67,7 +67,7 @@ function toast(text, err = false) {
 function renderHome() {
   app.innerHTML = `
   <div class="home">
-    <h1>Cat Lady</h1>
+    <div class="hero"><div><h1 class="logo">Cat Lady</h1></div><div class="fan">${cardHtml(sampleId('cat', 'Sir Cuddleface'), 'sm')}${cardHtml(sampleId('toy'), 'sm')}${cardHtml(sampleId('costume', 'Pirate'), 'sm')}</div></div>
     <div class="sub">The card-drafting game, playable live with someone far away. ${ui.mode === 'server' ? '' : '<span class="tiny">(Peer-to-peer mode: the game lives in the creator\'s browser tab.)</span>'}</div>
     <div class="box">
       <h2>Your name</h2>
@@ -87,15 +87,23 @@ function renderHome() {
 }
 
 // ---------- shared bits ----------
+function sampleId(type, name) { const c = Object.values(CARDS).find(c => c.type === type && (!name || c.name === name)); return c.id; }
 function catSvg(colors) {
-  const fill = colors.length === 1 ? COLOR_FILL[colors[0]] : 'url(#g' + colors.join('') + ')';
+  const key = colors.join('');
+  const fill = colors.length === 1 ? COLOR_FILL[colors[0]] : `url(#g${key})`;
   const stops = colors.map((c, i) => `<stop offset="${(i / colors.length) * 100}%" stop-color="${COLOR_FILL[c]}"/><stop offset="${((i + 1) / colors.length) * 100}%" stop-color="${COLOR_FILL[c]}"/>`).join('');
-  return `<svg viewBox="0 0 64 72" aria-hidden="true"><defs><linearGradient id="g${colors.join('')}" x1="0" x2="1">${stops}</linearGradient></defs>
-  <path d="M14 10 L22 24 H42 L50 10 L52 30 C60 40 58 60 46 66 C38 70 26 70 18 66 C6 60 4 40 12 30 Z" fill="${fill}" stroke="#2b2432" stroke-width="2.5" stroke-linejoin="round"/>
-  <circle cx="24" cy="36" r="2.4" fill="#2b2432"/><circle cx="40" cy="36" r="2.4" fill="#2b2432"/>
-  <path d="M29 43 L32 46 L35 43 M32 46 V48 M26 51 Q32 55 38 51" fill="none" stroke="#2b2432" stroke-width="2" stroke-linecap="round"/>
-  <path d="M8 40 L20 42 M8 46 L20 45 M56 40 L44 42 M56 46 L44 45" stroke="#2b2432" stroke-width="1.5" stroke-linecap="round"/></svg>`;
+  return `<svg viewBox="0 0 80 96" aria-hidden="true"><defs><linearGradient id="g${key}" x1="0" x2="1" y1="0" y2="1">${stops}</linearGradient></defs>
+  <g fill="${fill}" stroke="#2a2430" stroke-width="2.6" stroke-linejoin="round" stroke-linecap="round">
+    <path d="M24 90 C6 90 4 62 16 48 C22 40 32 38 40 40 C48 38 58 40 64 48 C76 62 74 90 56 90 Z"/>
+    <path d="M62 84 C74 86 80 78 76 68 C74 62 70 62 68 66 C66 72 70 76 62 80 Z"/>
+    <path d="M18 14 L26 30 L54 30 L62 14 L62 40 C62 52 18 52 18 40 Z"/>
+    <path d="M18 14 L26 30 M62 14 L54 30" fill="none"/>
+  </g>
+  <circle cx="31" cy="36" r="2.2" fill="#2a2430"/><circle cx="49" cy="36" r="2.2" fill="#2a2430"/>
+  <path d="M37.5 42 L40 44.5 L42.5 42 M40 44.5 V47 M34 50 Q40 54 46 50" fill="none" stroke="#2a2430" stroke-width="1.8" stroke-linecap="round"/>
+  <path d="M10 40 L24 42 M10 46 L24 45 M70 40 L56 42 M70 46 L56 45" stroke="#2a2430" stroke-width="1.4" stroke-linecap="round"/></svg>`;
 }
+const tokenSvg = `<svg viewBox="0 0 64 64" aria-label="cat token"><path d="M14 58 C4 58 4 36 12 30 L12 12 L22 22 L36 22 L46 12 L46 30 C50 34 52 42 52 48 C58 44 62 50 58 56 C56 59 52 59 50 57 C48 58 46 58 44 58 Z" fill="#9a9aa6" stroke="#2a2430" stroke-width="2.5" stroke-linejoin="round"/></svg>`;
 function needHtml(need) {
   if (!need) return '?';
   return FOOD_TYPES.filter(t => need[t]).map(t => `${need[t]} ${FOOD_ICON[t]}`).join(' ');
@@ -154,7 +162,7 @@ function renderLobby(snap) {
   const canStart = isHost && snap.seats.length >= 2;
   app.innerHTML = `
   <div class="lobby">
-    <h1>Cat Lady</h1>
+    <h1 class="logo">Cat Lady</h1>
     <div class="box">
       <h2>Room code <span class="code">${snap.code}</span></h2>
       <p class="tiny muted">Send this link to your fellow cat ladies:</p>
@@ -184,7 +192,7 @@ function renderGame(snap) {
   const isTurn = mine && st.phase === 'playing' && st.current === you;
   let status = '';
   if (st.phase === 'placeToken') status = st.tokenPlacer === you ? 'Place the cat token next to a row or column to block it.' : `Waiting for ${esc(st.players[st.tokenPlacer].name)} to place the cat token.`;
-  else if (st.phase === 'playing') status = isTurn ? (st.turn.taken ? 'You took cards. Play lost cats or a spray bottle, then end your turn.' : 'Your turn: take a row or column.') : `${esc(st.players[st.current].name)}'s turn.`;
+  else if (st.phase === 'playing') status = isTurn ? (st.turn.taken ? 'You took cards. Play a spray bottle or lost cats, or end your turn.' : 'Your turn: take a row or column.') : `${esc(st.players[st.current].name)}'s turn.`;
   else if (st.phase === 'feeding') status = mine && !meP.feedingDone ? 'Game over! Feed your cats, then press Done.' : 'Waiting for everyone to finish feeding…';
   else status = 'Final scores';
   const picking = ui.pick;
@@ -196,16 +204,16 @@ function renderGame(snap) {
   <div class="game ${offline ? 'offline' : ''}">
     ${offline ? `<div class="offline-bar">${statusText()} — your moves are paused until the connection is back.</div>` : ''}
     <div class="topbar">
-      <span class="title">Cat Lady</span>
+      <span class="logo small">Cat Lady</span>
       <span class="status ${isTurn || (st.phase === 'placeToken' && st.tokenPlacer === you) ? 'mine' : ''}">${status}</span>
       <span class="tiny muted">Room ${snap.code} · turn ${st.turnNumber} · ${statusText()}</span>
       <button class="small" data-do="rules">Rules</button>
     </div>
     <div class="main">
       ${st.phase === 'ended' ? renderResults(snap) : ''}
+      ${st.players.map((p, i) => i === you ? '' : renderOther(snap, i)).join('')}
       ${st.phase === 'feeding' || st.phase === 'ended' ? '' : renderBoard(snap)}
       ${mine ? renderMe(snap) : ''}
-      ${st.players.map((p, i) => i === you ? '' : renderOther(snap, i)).join('')}
     </div>
     <div class="side">
       ${renderStrays(snap)}
@@ -224,23 +232,24 @@ function renderBoard(snap) {
     const blocked = sameLine(line, st.token);
     const empty = !lineSlots(line).some(s => st.grid[s]);
     const can = pickMode && !blocked && (pickMode !== 'take' || !empty);
-    const arrow = line.kind === 'row' ? '▶' : '▼';
-    return `<button class="linebtn ${blocked ? 'blocked' : ''} ${can ? 'pick' : ''}" title="${blocked ? 'The cat token blocks this line' : lineName(line)}" data-line="${line.kind}:${line.index}" ${can ? '' : 'disabled'}>${blocked ? '🐈' : arrow}</button>`;
+    const arrow = line.kind === 'row' ? '▸' : '▾';
+    return `<button class="linebtn ${blocked ? 'blocked' : ''} ${can ? 'pick' : ''}" title="${blocked ? 'The cat token blocks this line' : lineName(line)}" data-line="${line.kind}:${line.index}" ${can ? '' : 'disabled'}>${blocked ? tokenSvg : can ? '🐾' : arrow}</button>`;
   };
   const cells = [];
   cells.push('<div></div>');
   for (let c = 0; c < 3; c++) cells.push(lineBtn({ kind: 'col', index: c }));
   for (let r = 0; r < 3; r++) {
     cells.push(lineBtn({ kind: 'row', index: r }));
-    for (let c = 0; c < 3; c++) { const id = st.grid[r * 3 + c]; cells.push(`<div class="slot" data-slot="${r * 3 + c}">${id ? cardHtml(id) : '<div class="empty"></div>'}</div>`); }
+    for (let c = 0; c < 3; c++) { const i = r * 3 + c; const id = st.grid[i]; const fresh = ui.lastGrid && ui.lastGrid[i] !== id; cells.push(`<div class="slot ${fresh ? 'fresh' : ''}" data-slot="${i}">${id ? cardHtml(id) : '<div class="empty"></div>'}</div>`); }
   }
-  return `<div class="panel"><div class="boardwrap">
+  ui.lastGrid = st.grid.slice();
+  return `<div class="panel tablepanel"><div class="boardwrap">
     <div class="board">${cells.join('')}</div>
     <div class="boardside">
       <div class="piles"><span class="pile">Deck: ${st.deckCount}</span><span class="pile">Discard: ${st.discard.length}</span><span class="pile">VP tokens: ${st.vpTokensLeft} × 💗2</span></div>
-      ${pickMode === 'take' ? '<div class="hint">Click an arrow to take that whole row or column. The 🐈 marks the blocked line.</div>' : ''}
-      ${pickMode === 'place' ? '<div class="hint">Click an arrow to put the cat token there. That line cannot be taken on the first turn.</div>' : ''}
-      ${pickMode === 'spray' ? '<div class="hint">Click an arrow to move the cat token there. <button class="small" data-do="cancel">Cancel</button></div>' : ''}
+      ${pickMode === 'take' ? '<div class="hint">Tap a paw to take that whole row or column. The grey cat token marks the line you cannot take.</div>' : ''}
+      ${pickMode === 'place' ? '<div class="hint">Tap a paw to put the cat token there. That line cannot be taken on the first turn.</div>' : ''}
+      ${pickMode === 'spray' ? '<div class="hint">Tap a paw to move the cat token there. <button class="small" data-do="cancel">Cancel</button></div>' : ''}
     </div></div></div>`;
 }
 
@@ -274,12 +283,12 @@ function renderMe(snap) {
       ${p.moonbeamUsed > 0 && p.food.wild > 0 ? FOOD_TYPES.map(t => `<button class="small" data-moonundo="${t}">✨→${FOOD_ICON[t]}</button>`).join(' ') : ''}</div>`;
   }
   return `<div class="panel you">
-    <div class="player-head"><h3>${esc(p.name)} (you)</h3> <span class="tiny muted">${p.vpTokens ? '💗×' + p.vpTokens : ''}</span></div>
+    <div class="player-head"><h3>${esc(p.name)} <span class="muted tiny">(you)</span></h3> ${isTurn ? '<span class="turnpill">your turn</span>' : ''} <span class="tiny muted">${p.vpTokens ? '💗×' + p.vpTokens : ''}</span></div>
     ${actions}
-    <div style="margin:8px 0"><b class="tiny">Food${feeding ? ' left to give' : ''}:</b> <span class="foodrow">${cubesHtml(p.food)}</span></div>
+    <div class="label">Food${feeding ? ' left to give' : ''} <span class="foodrow" style="display:inline-flex">${cubesHtml(p.food)}</span></div>
     ${moon}
-    <div class="tiny"><b>Cats</b></div><div class="cards" style="margin-bottom:8px">${cats}</div>
-    <div class="tiny"><b>Hand</b> <span class="muted">(toys, costumes, catnip, lost cats, spray bottles stay hidden from other players)</span></div>
+    <div class="label">Cats</div><div class="cards" style="margin-bottom:6px">${cats}</div>
+    <div class="label">Hand <span class="muted">(toys, costumes, catnip, lost cats and spray bottles stay hidden from the others)</span></div>
     <div class="cards">${sortHand(p.hand).map(id => cardHtml(id, 'sm')).join('') || '<span class="muted tiny">Empty.</span>'}</div>
   </div>`;
 }
@@ -304,10 +313,10 @@ function renderOther(snap, i) {
   const showFeeding = st.phase === 'feeding' || st.phase === 'ended';
   const hand = p.hand ? sortHand(p.hand).map(id => cardHtml(id, 'sm')).join('') : Array.from({ length: p.handCount }, () => cardBack('sm')).join('');
   return `<div class="panel">
-    <div class="player-head"><span class="dot ${seat?.connected ? 'on' : ''}"></span><h3>${esc(p.name)}</h3> <span class="tiny muted">${st.current === i && st.phase === 'playing' ? '· their turn' : ''} ${p.vpTokens ? '💗×' + p.vpTokens : ''} ${showFeeding ? (p.feedingDone ? '· done feeding' : '· feeding…') : ''}</span></div>
-    <div style="margin:6px 0"><b class="tiny">Food:</b> <span class="foodrow">${cubesHtml(p.food)}</span></div>
-    <div class="cards" style="margin-bottom:8px">${p.cats.map(cat => catWithFeeding(cat, p, false)).join('') || '<span class="muted tiny">No cats yet.</span>'}</div>
-    <div class="tiny"><b>Hand</b> (${p.hand ? p.hand.length : p.handCount})</div><div class="cards">${hand || '<span class="muted tiny">Empty.</span>'}</div>
+    <div class="player-head"><span class="dot ${seat?.connected ? 'on' : ''}" title="${seat?.connected ? 'online' : 'offline'}"></span><h3>${esc(p.name)}</h3> ${st.current === i && st.phase === 'playing' ? '<span class="turnpill">their turn</span>' : ''} <span class="tiny muted">${p.vpTokens ? '💗×' + p.vpTokens : ''} ${showFeeding ? (p.feedingDone ? '· done feeding' : '· feeding…') : ''}</span></div>
+    <div class="label">Food <span class="foodrow" style="display:inline-flex">${cubesHtml(p.food)}</span></div>
+    <div class="label">Cats</div><div class="cards" style="margin-bottom:6px">${p.cats.map(cat => catWithFeeding(cat, p, false)).join('') || '<span class="muted tiny">No cats yet.</span>'}</div>
+    <div class="label">Hand <span class="muted">(${p.hand ? p.hand.length : p.handCount} cards)</span></div><div class="cards">${hand || '<span class="muted tiny">Empty.</span>'}</div>
   </div>`;
 }
 
