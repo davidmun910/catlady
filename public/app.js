@@ -183,8 +183,10 @@ function renderGame(snap) {
   if (picking?.kind === 'spray') status = 'Spray bottle: choose where the cat token goes.';
   if (picking?.kind === 'stray') status = 'Choose a stray cat to bring home.';
 
+  const offline = ui.status !== 'connected';
   app.innerHTML = `
-  <div class="game">
+  <div class="game ${offline ? 'offline' : ''}">
+    ${offline ? `<div class="offline-bar">${statusText()} — your moves are paused until the connection is back.</div>` : ''}
     <div class="topbar">
       <span class="title">Cat Lady</span>
       <span class="status ${isTurn || (st.phase === 'placeToken' && st.tokenPlacer === you) ? 'mine' : ''}">${status}</span>

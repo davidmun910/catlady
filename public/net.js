@@ -66,9 +66,16 @@ export class PeerHostTransport extends Emitter {
     });
     peer.on('disconnected', () => { if (!this.closed) { this.emit('status', 'reconnecting'); setTimeout(() => { try { peer.reconnect(); } catch { /* ignore */ } }, 1500); } });
     peer.on('error', err => {
-      if (err.type === 'unavailable-id') this.emit('status', 'taken');
-      else if (!this.closed) { this.emit('status', 'reconnecting'); setTimeout(() => { try { peer.destroy(); } catch { /* ignore */ } this.open(); }, 3000); }
+      if (this.closed) return;
+      if (err.type === 'unavailable-id') {
+        // After a refresh the signalling server may still hold our old id for a moment: retry, then give up.
+        this.idRetries = (this.idRetries || 0) + 1;
+        if (this.idRetries > 12) { this.emit('status', 'taken'); return; }
+      }
+      this.emit('status', 'reconnecting');
+      setTimeout(() => { try { peer.destroy(); } catch { /* ignore */ } this.open(); }, 3000);
     });
+    peer.on('open', () => { this.idRetries = 0; });
   }
   send(msg) { this.room.handle(this.localId, msg); }
   close() { this.closed = true; try { this.peer?.destroy(); } catch { /* ignore */ } }

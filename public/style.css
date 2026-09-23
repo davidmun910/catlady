@@ -68,7 +68,9 @@ input[type=text] { font: inherit; padding: 8px 10px; border: 1px solid var(--lin
 .card { width: var(--card-w); aspect-ratio: 5 / 7; border-radius: 10px; border: 2px solid #2b2432; position: relative; display: flex; flex-direction: column; align-items: center; padding: 4px; font-size: 11px; line-height: 1.15; overflow: hidden; color: #2b2432; user-select: none; }
 .card .name { font-weight: 700; text-align: center; font-size: 11px; background: #fff; border-radius: 6px; padding: 1px 4px; margin: 2px 0; max-width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .card .art { flex: 1; min-height: 0; display: flex; align-items: center; justify-content: center; width: 100%; font-size: 30px; }
-.card.hastext .art svg { width: 42%; }
+.card.hastext .art { flex: 0 1 auto; }
+.card.hastext .art svg { width: 36%; }
+.card.hastext .txt { font-size: 8px; line-height: 1.1; }
 .card .art svg { width: 62%; height: auto; }
 .card .foot { text-align: center; font-size: 12px; font-weight: 600; min-height: 16px; }
 .card .txt { font-size: 9px; text-align: center; background: rgba(255,255,255,.85); border-radius: 5px; padding: 2px; margin-bottom: 2px; }
@@ -118,3 +120,5 @@ input[type=text] { font: inherit; padding: 8px 10px; border: 1px solid var(--lin
 .modal h2 { margin-top: 0; }
 .modal ul { padding-left: 18px; }
 @media (max-width: 600px) { :root { --card-w: 78px; } .board { grid-template-columns: 36px repeat(3, var(--card-w)); } .topbar .title { display: none; } }
+.offline-bar { grid-column: 1 / -1; background: var(--warn); color: #fff; border-radius: var(--radius); padding: 8px 14px; font-weight: 600; }
+.offline .linebtn, .offline .actions button, .offline [data-stray], .offline .feedbtns button, .offline .chip { pointer-events: none; opacity: .5; }
