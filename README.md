@@ -3,6 +3,8 @@
 A faithful, playable web version of **Cat Lady** (the card game by Josh Wood, published by AEG) for 2 to 4 players
 who are not in the same room. One person creates a game, shares the link, and everyone plays live in the browser.
 
+**Play it here: https://davidmun910.github.io/catlady/** (deployed from `public/` by GitHub Actions on every push to `main`).
+
 Cat Lady is © Alderac Entertainment Group. This is a fan-made implementation for private play; the card art is
 replaced by simple drawings.
 
