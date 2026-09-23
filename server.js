@@ -6,6 +6,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { WebSocketServer } from 'ws';
 import { Room, makeCode } from './public/room.js';
+import { listArt } from './scripts/art-index.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PUBLIC = path.join(__dirname, 'public');
@@ -37,6 +38,7 @@ const server = http.createServer((req, res) => {
     let code; do code = makeCode(); while (rooms.has(code));
     getRoom(code, true); res.writeHead(200, cors); return res.end(JSON.stringify({ code }));
   }
+  if (url.pathname === '/art/index.json') { res.writeHead(200, { 'content-type': 'application/json', 'cache-control': 'no-cache' }); return res.end(JSON.stringify(listArt(path.join(PUBLIC, 'art')))); }
   let file = url.pathname === '/' ? '/index.html' : url.pathname;
   file = path.normalize(file).replace(/^(\.\.[/\\])+/, '');
   const full = path.join(PUBLIC, file);
