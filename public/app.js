@@ -319,7 +319,7 @@ function renderMyArea(snap) {
     ${actions}
     <div class="seat-row">
       <div class="tray" data-fly="tray-${you}"><div class="pilelabel">Food${feeding ? ' left' : ''}</div><span class="foodrow">${cubesHtml(p.food)}</span></div>
-      <div class="cats cards">${p.cats.map(cat => catWithFeeding(cat, p, false, feeding ? 'sm' : '')).join('') || '<span class="muted tiny">Your cats will sit here.</span>'}</div>
+      ${feeding ? '' : `<div class="cats cards">${p.cats.map(cat => catWithFeeding(cat, p, false)).join('') || '<span class="muted tiny">Your cats will sit here.</span>'}</div>`}
     </div>
   </div>`;
 }
