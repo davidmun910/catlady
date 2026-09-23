@@ -33,9 +33,8 @@ test('token placement then blocked line and refill', () => {
   assert.equal(s.deck.length, before - 3);
   assert.ok(lineSlots({ kind: 'col', index: 2 }).every(i => s.grid[i]));
   assert.deepEqual(s.token, { kind: 'col', index: 2 });
-  assert.throws(() => applyAction(s, 0, { type: 'take', kind: 'row', index: 1 }), /already/);
-  s = applyAction(s, 0, { type: 'endTurn' });
-  assert.equal(s.current, 1);
+  assert.equal(s.current, 1); // nothing playable in hand, so the turn ended by itself
+  assert.throws(() => applyAction(s, 0, { type: 'take', kind: 'row', index: 1 }), /turn/);
   assert.equal(availableLines(s).length, 5);
 });
 
@@ -45,6 +44,7 @@ test('cards go to the right places', () => {
   s.grid = [null, null, null, byName('Bronte'), byName('Chicken x2'), byName('Bunny'), null, null, null];
   s = applyAction(s, 0, { type: 'take', kind: 'row', index: 1 });
   const p = s.players[0];
+  assert.equal(s.current, 1);
   assert.equal(p.cats.length, 1); assert.equal(p.food.chicken, 2); assert.deepEqual(p.hand.map(id => CARDS[id].name), ['Bunny']);
   assert.ok(s.discard.includes(byName('Chicken x2')));
 });
@@ -56,6 +56,7 @@ test('spray bottle and lost cats', () => {
   s = applyAction(s, 0, { type: 'spray', kind: 'col', index: 1 });
   assert.deepEqual(s.token, { kind: 'col', index: 1 });
   s = applyAction(s, 0, { type: 'take', kind: 'row', index: 0 }); // row 0 is now free
+  assert.equal(s.current, 0); // still has lost cats to play, so the turn stays open
   const stray = s.strays[0];
   s = applyAction(s, 0, { type: 'lostCats', choice: 'stray', cardId: stray });
   assert.equal(s.strays.length, 2); assert.ok(s.players[0].cats.some(c => c.cardId === stray));
@@ -71,7 +72,7 @@ test('game ends when the deck cannot refill, then feeding and scoring', () => {
   while (s.phase === 'playing') {
     const line = availableLines(s)[0];
     s = applyAction(s, s.current, { type: 'take', ...line });
-    s = applyAction(s, s.current, { type: 'endTurn' });
+    if (s.phase === 'playing' && s.turn.taken) s = applyAction(s, s.current, { type: 'endTurn' });
     turns++;
   }
   assert.equal(s.phase, 'feeding');

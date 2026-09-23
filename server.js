@@ -57,10 +57,12 @@ wss.on('connection', (ws, req) => {
   const room = getRoom(code, true);
   const id = ++connSeq;
   room.attach(id, msg => ws.send(JSON.stringify(msg)));
-  ws.on('message', data => { let msg; try { msg = JSON.parse(data); } catch { return; } room.handle(id, msg); });
+  ws.lastSeen = Date.now();
+  ws.on('message', data => { ws.lastSeen = Date.now(); let msg; try { msg = JSON.parse(data); } catch { return; } room.handle(id, msg); });
   ws.on('close', () => room.detach(id));
-  ws.isAlive = true; ws.on('pong', () => { ws.isAlive = true; });
+  ws.on('pong', () => { ws.lastSeen = Date.now(); });
 });
-setInterval(() => { for (const ws of wss.clients) { if (!ws.isAlive) return ws.terminate(); ws.isAlive = false; ws.ping(); } }, 30000);
+// Clients send {type:'ping'} every 20s; drop a socket only after 90s of silence (proxies may not forward protocol pings).
+setInterval(() => { for (const ws of wss.clients) { if (Date.now() - ws.lastSeen > 90000) ws.terminate(); else { try { ws.ping(); } catch { /* ignore */ } } } }, 30000);
 
 server.listen(PORT, () => console.log(`Cat Lady is running on http://localhost:${PORT}`));

@@ -111,6 +111,14 @@ function take(state, pi, a) {
   }
   log(state, `${name(state, pi)} took ${lineName(line)}: ${gained.join(', ')}.`);
   if (state.endTriggered) log(state, 'The deck is empty: this is the final turn.');
+  // Lost cats and spray bottles may be played after taking; if there is nothing to play, the turn ends by itself.
+  if (!hasPlayable(state, p)) endTurn(state, pi);
+}
+
+export function hasPlayable(state, p) {
+  const lost = p.hand.filter(id => CARDS[id].type === 'lost').length;
+  if (lost >= 2 && (state.vpTokensLeft > 0 || state.strays.length > 0)) return true;
+  return p.hand.some(id => CARDS[id].type === 'spray');
 }
 
 function spray(state, pi, a) {

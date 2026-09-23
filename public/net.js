@@ -42,13 +42,13 @@ export class ServerTransport extends Emitter {
     if (this.closed) return;
     const ws = new WebSocket(relayBase().replace(/^http/, 'ws') + `/ws?room=${this.code}`);
     this.ws = ws;
-    ws.onopen = () => { this.retry = 1000; this.emit('status', 'connected'); };
+    ws.onopen = () => { this.retry = 1000; this.emit('status', 'connected'); clearInterval(this.beat); this.beat = setInterval(() => this.send({ type: 'ping' }), 20000); };
     ws.onmessage = e => { try { this.emit('message', JSON.parse(e.data)); } catch { /* ignore */ } };
     ws.onclose = () => { if (this.closed) return; this.emit('status', 'reconnecting'); setTimeout(() => this.connect(), this.retry); this.retry = Math.min(this.retry * 2, 10000); };
     ws.onerror = () => ws.close();
   }
   send(msg) { if (this.ws && this.ws.readyState === 1) this.ws.send(JSON.stringify(msg)); }
-  close() { this.closed = true; this.ws?.close(); }
+  close() { this.closed = true; clearInterval(this.beat); this.ws?.close(); }
 }
 
 const PEER_PREFIX = 'catlady-v1-';

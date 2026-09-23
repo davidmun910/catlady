@@ -29,6 +29,7 @@ export class Room {
     if (!conn) return;
     try {
       switch (msg.type) {
+        case 'ping': return conn.send({ type: 'pong' });
         case 'hello': return this.hello(conn, msg);
         case 'start': return this.start(conn, msg);
         case 'action': return this.action(conn, msg);

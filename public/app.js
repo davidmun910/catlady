@@ -48,6 +48,7 @@ function connect(code) {
   ui.transport.on('message', msg => {
     if (msg.type === 'state') { ui.snap = msg; if (ui.pick && ui.pick.kind === 'spray' && !hasCard(me(), 'spray')) ui.pick = null; render(); }
     else if (msg.type === 'error') toast(msg.message, true);
+    else if (msg.type === 'pong') { /* heartbeat */ }
   });
   render();
 }
@@ -104,7 +105,7 @@ function cardHtml(id, cls = '', attrs = '') {
   const c = CARDS[id];
   const mark = c.minPlayers > 2 ? `<span class="mark">${c.minPlayers === 3 ? '3+' : '4'}</span>` : '';
   if (c.type === 'cat') {
-    return `<div class="card cat ${c.stray ? 'stray' : ''} ${c.text ? 'hastext' : ''} ${cls}" title="${esc(c.name)}${c.text ? ': ' + esc(c.text) : ''}" ${attrs}>
+    return `<div class="card cat ${c.stray ? 'stray' : ''} ${c.text ? 'hastext' : ''} ${cls}" data-id="${id}" title="${esc(c.name)}${c.text ? ': ' + esc(c.text) : ''}" ${attrs}>
       <span class="colors">${c.colors.join('+')}</span>${mark}
       <div class="name">${esc(c.name)}</div>${c.stray ? '<div class="sub">Stray Cat</div>' : ''}
       <div class="vp">${vpLabel(c)}</div>
@@ -114,13 +115,13 @@ function cardHtml(id, cls = '', attrs = '') {
   }
   if (c.type === 'food') {
     const icon = c.food === 'wild' ? '🍗🐟🥛' : FOOD_ICON[c.food];
-    return `<div class="card food ${c.food} ${cls}" ${attrs}>${mark}<div class="name">${esc(c.name)}</div><div class="art" style="font-size:${c.food === 'wild' ? 18 : 30}px">${icon}</div><div class="foot">${c.amount === 2 ? 'x2 ' : ''}food</div></div>`;
+    return `<div class="card food ${c.food} ${cls}" data-id="${id}" ${attrs}>${mark}<div class="name">${esc(c.name)}</div><div class="art" style="font-size:${c.food === 'wild' ? 18 : 30}px">${icon}</div><div class="foot">${c.amount === 2 ? 'x2 ' : ''}food</div></div>`;
   }
-  if (c.type === 'toy') return `<div class="card toy ${cls}" ${attrs}>${mark}<div class="name">${esc(c.name)}</div><div class="art">${TOY_ICON[c.toy]}</div><div class="foot">toy<br><span class="tiny">1/3/5/8/12</span></div></div>`;
-  if (c.type === 'costume') return `<div class="card costume ${cls}" ${attrs}>${mark}<div class="name">${esc(c.name)}</div><div class="art">${COSTUME_ICON[c.name] || '🎭'}</div><div class="foot">costume<br><span class="tiny">Most: 6 · None: −2</span></div></div>`;
-  if (c.type === 'catnip') return `<div class="card catnip ${cls}" ${attrs}>${mark}<div class="name">Catnip</div><div class="art">🌿</div><div class="foot tiny">1) −2 · 2-3) +1/cat · 4) +2/cat</div></div>`;
-  if (c.type === 'spray') return `<div class="card spray ${cls}" ${attrs}>${mark}<div class="name">Spray Bottle</div><div class="art">🧴</div><div class="foot tiny">Discard to move the cat token</div></div>`;
-  if (c.type === 'lost') return `<div class="card lost ${cls}" ${attrs}>${mark}<div class="name">Lost Cat</div><div class="art">📋</div><div class="foot tiny">Discard 2: 2 VP or a stray cat</div></div>`;
+  if (c.type === 'toy') return `<div class="card toy ${cls}" data-id="${id}" ${attrs}>${mark}<div class="name">${esc(c.name)}</div><div class="art">${TOY_ICON[c.toy]}</div><div class="foot">toy<br><span class="tiny">1/3/5/8/12</span></div></div>`;
+  if (c.type === 'costume') return `<div class="card costume ${cls}" data-id="${id}" ${attrs}>${mark}<div class="name">${esc(c.name)}</div><div class="art">${COSTUME_ICON[c.name] || '🎭'}</div><div class="foot">costume<br><span class="tiny">Most: 6 · None: −2</span></div></div>`;
+  if (c.type === 'catnip') return `<div class="card catnip ${cls}" data-id="${id}" ${attrs}>${mark}<div class="name">Catnip</div><div class="art">🌿</div><div class="foot tiny">1) −2 · 2-3) +1/cat · 4) +2/cat</div></div>`;
+  if (c.type === 'spray') return `<div class="card spray ${cls}" data-id="${id}" ${attrs}>${mark}<div class="name">Spray Bottle</div><div class="art">🧴</div><div class="foot tiny">Discard to move the cat token</div></div>`;
+  if (c.type === 'lost') return `<div class="card lost ${cls}" data-id="${id}" ${attrs}>${mark}<div class="name">Lost Cat</div><div class="art">📋</div><div class="foot tiny">Discard 2: 2 VP or a stray cat</div></div>`;
   return '';
 }
 const cardBack = (cls = '') => `<div class="card back ${cls}">🐈</div>`;
