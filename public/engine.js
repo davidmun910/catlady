@@ -38,7 +38,7 @@ export function newGame({ players, seed = Date.now() % 2147483647, startingPlaye
     players: players.map(p => ({ id: p.id, name: p.name, cats: [], hand: [], food: emptyFood(), vpTokens: 0, feedingDone: false, moonbeamUsed: 0 })),
     deck, removed, discard: [], grid, strays, strayDeck, vpTokensLeft: 6,
     token: null, current: startingPlayer, tokenPlacer: (startingPlayer - 1 + n) % n,
-    turn: { taken: false, tookCards: [] }, endTriggered: false, results: null, log: [],
+    turn: { taken: false, tookCards: [] }, lastTake: null, endTriggered: false, results: null, log: [],
   };
 }
 
@@ -103,6 +103,7 @@ function take(state, pi, a) {
   state.token = line;
   state.turn.taken = true;
   state.turn.tookCards = cards;
+  state.lastTake = { player: pi, line, cards, turn: state.turnNumber };
   // Refill. The game ends when a slot needs refilling and the deck is empty.
   for (const s of slots) {
     if (state.grid[s]) continue;
@@ -160,7 +161,7 @@ function endTurn(state, pi) {
   assert(state.turn.taken, 'Take a row or column first.');
   if (state.endTriggered || availableLines(state).length === 0) {
     state.phase = 'feeding';
-    for (const p of state.players) applyAutoFeed(p);
+    for (const p of state.players) if (!p.cats.some(c => Object.values(c.food).some(x => x))) applyAutoFeed(p);
     log(state, 'The game is over. Feed your cats!');
     return;
   }
@@ -189,7 +190,7 @@ export function canAssign(cat, foodType) {
   if (foodType === 'wild') return true;
   return f[foodType] < c.need[foodType];
 }
-function requireFeeding(state, pi) { assert(state.phase === 'feeding', 'Feeding happens at the end of the game.'); assert(!state.players[pi].feedingDone, 'You already finished feeding. Undo first.'); }
+function requireFeeding(state, pi) { assert(state.phase === 'feeding' || state.phase === 'playing', 'The game has not started.'); assert(!state.players[pi].feedingDone, 'You already finished feeding. Undo first.'); }
 function findCat(p, cardId) { const cat = p.cats.find(c => c.cardId === cardId); assert(cat, 'Not your cat.'); return cat; }
 
 function feed(state, pi, a) {
@@ -218,6 +219,7 @@ function moonbeam(state, pi, a) {
   requireFeeding(state, pi);
   const p = state.players[pi];
   assert(p.cats.some(c => CARDS[c.cardId].special === 'wilds'), 'You do not have Moonbeam.');
+  assert(state.phase === 'feeding', 'Moonbeam turns food into wilds at the end of the game.');
   if (a.undo) {
     assert(p.moonbeamUsed > 0 && p.food.wild > 0, 'Nothing to undo.');
     assert(FOOD_TYPES.includes(a.food), 'Bad food type.');
@@ -376,4 +378,20 @@ export function redact(state, seat) {
   if (s.phase !== 'ended') for (let i = 0; i < s.players.length; i++) if (i !== seat) { s.players[i].handCount = s.players[i].hand.length; s.players[i].hand = null; }
   delete s.deck; s.deckCount = state.deck.length; delete s.removed; delete s.strayDeck; s.strayDeckCount = state.strayDeck.length;
   return s;
+}
+
+// What a player still lacks to feed every cat with a fixed need, after counting assigned cubes, free cubes and wilds.
+export function stillNeeded(p) {
+  const need = { chicken: 0, tuna: 0, milk: 0 };
+  for (const cat of p.cats) {
+    const c = CARDS[cat.cardId]; if (!c.need) continue;
+    for (const t of FOOD_TYPES) need[t] += Math.max(0, c.need[t] - cat.food[t]);
+    // wilds already assigned to this cat cover its shortfall first
+    let w = cat.food.wild;
+    for (const t of FOOD_TYPES) { const use = Math.min(w, Math.max(0, c.need[t] - cat.food[t])); need[t] -= use; w -= use; }
+  }
+  for (const t of FOOD_TYPES) need[t] = Math.max(0, need[t] - p.food[t]);
+  let wild = p.food.wild;
+  for (const t of FOOD_TYPES) { const use = Math.min(wild, need[t]); need[t] -= use; wild -= use; }
+  return need;
 }

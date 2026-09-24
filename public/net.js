@@ -4,9 +4,11 @@
 import { Room } from './room.js';
 
 // Where the relay server lives: this origin (when server.js serves the page) or window.CATLADY_RELAY (a remote server).
+let preferLocal = false; // set when the page itself is served by server.js (local dev, or the Render URL opened directly)
+const localBase = () => location.origin + location.pathname.replace(/[^/]*$/, '').replace(/\/$/, '');
 export function relayBase() {
-  const r = (typeof window !== 'undefined' && window.CATLADY_RELAY) ? String(window.CATLADY_RELAY).replace(/\/+$/, '') : '';
-  return r || location.origin + location.pathname.replace(/[^/]*$/, '').replace(/\/$/, '');
+  const r = (!preferLocal && typeof window !== 'undefined' && window.CATLADY_RELAY) ? String(window.CATLADY_RELAY).replace(/\/+$/, '') : '';
+  return r || localBase();
 }
 async function ping(base, ms) {
   try {
@@ -18,8 +20,9 @@ async function ping(base, ms) {
 }
 // Resolves 'server' or 'p2p'. A remote relay may be asleep (free hosting): keep knocking for a while and report progress.
 export async function detectMode(onWait) {
+  if (await ping(localBase(), 2500)) { preferLocal = true; return 'server'; }
   const remote = !!(typeof window !== 'undefined' && window.CATLADY_RELAY);
-  if (!remote) return (await ping(relayBase(), 2500)) ? 'server' : 'p2p';
+  if (!remote) return 'p2p';
   const deadline = Date.now() + 90000;
   let n = 0;
   while (Date.now() < deadline) {

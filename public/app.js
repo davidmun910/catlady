@@ -1,5 +1,5 @@
 import { CARDS, FOOD_TYPES } from './cards.js';
-import { LINES, lineSlots, sameLine, catFedInfo, canAssign, lineName, hasPlayable } from './engine.js';
+import { LINES, lineSlots, sameLine, catFedInfo, canAssign, lineName, hasPlayable, stillNeeded } from './engine.js';
 import { detectMode, relayBase, ServerTransport, PeerHostTransport, PeerGuestTransport } from './net.js';
 import { makeCode } from './room.js';
 import { artPath, hasArt, probeAll, setArtListener, EXTRA_ART } from './art.js';
@@ -23,7 +23,7 @@ let token = store.get('catlady:token', '');
 if (!token) { token = Math.random().toString(36).slice(2) + Date.now().toString(36); store.set('catlady:token', token); }
 let myName = store.get('catlady:name', '');
 
-const ui = { mode: null, code: null, transport: null, status: 'connecting', snap: null, pick: null, showRules: false, drawer: null, lastGrid: null, lastPhase: null, raised: null, unread: 0, seenChat: 0 };
+const ui = { mode: null, code: null, transport: null, status: 'connecting', snap: null, pick: null, showRules: false, drawer: null, lastGrid: null, lastPhase: null, handOpen: true, peek: null, unread: 0, seenChat: 0 };
 
 // ---------- boot ----------
 async function boot() {
@@ -92,7 +92,9 @@ function cardHtml(id, cls = '', attrs = '') {
   const mark = c.minPlayers > 2 ? `<span class="mark">${c.minPlayers === 3 ? '3+' : '4'}</span>` : '';
   const base = `class="card ${c.type} ${cls}" data-id="${id}" ${fly} ${attrs}`;
   if (c.type === 'cat') {
-    return `<div ${base.replace('class="card cat', `class="card cat ${c.stray ? 'stray' : ''} ${c.text ? 'hastext' : ''}`)} title="${esc(c.name)}${c.text ? ': ' + esc(c.text) : ''}">
+    const tlen = c.text ? (c.text.length > 90 ? 'xlong' : c.text.length > 55 ? 'long' : 'short') : '';
+    const nlen = c.name.length > 12 ? 'longname' : '';
+    return `<div ${base.replace('class="card cat', `class="card cat ${c.stray ? 'stray' : ''} ${c.text ? 'hastext t-' + tlen : ''} ${nlen}`)} title="${esc(c.name)}${c.text ? ': ' + esc(c.text) : ''}">
       <span class="colors">${c.colors.join('+')}</span>${mark}
       <div class="name">${esc(c.name)}</div>${c.stray ? '<div class="sub">Stray Cat</div>' : ''}
       <div class="vp">${vpLabel(c)}</div>
@@ -126,16 +128,27 @@ function render(opts = {}) {
   else if (!ui.snap.state) renderLobby(ui.snap);
   else renderGame(ui.snap);
   if (prev) animateFlights(prev);
+  countUp();
   fitTable();
+}
+function countUp() {
+  if (reduceMotion()) return;
+  for (const el of app.querySelectorAll('.justnow .countup, .total .countup')) {
+    const to = +el.dataset.to; const key = el.closest('tr').className + ':' + to; if (el.dataset.done) continue; el.dataset.done = '1';
+    const from = el.closest('.total') && ui.reveal ? (ui.reveal.lastTotals?.[[...el.closest('tr').children].indexOf(el.parentElement)] ?? 0) : 0;
+    const t0 = performance.now(); const tick = t => { const k = Math.min(1, (t - t0) / 900); const v = Math.round(from + (to - from) * (1 - Math.pow(1 - k, 3))); el.textContent = (to > 0 && !el.closest('.total') ? '+' : '') + v; if (k < 1) requestAnimationFrame(tick); }; requestAnimationFrame(tick);
+  }
+  if (ui.reveal) ui.reveal.lastTotals = [...app.querySelectorAll('.total .countup')].map(e => +e.dataset.to);
 }
 
 // Scale the tilted table so the whole thing fits the viewport height (no scrolling to find your own cats).
 function fitTable() {
   const scene = $('.scene'), table = $('.table'); if (!scene || !table) return;
   table.style.setProperty('--fit', 1);
-  const avail = scene.clientHeight - 24 - (app.querySelector('.handlayer') && !app.querySelector('.ended') ? 90 : 0);
+  if (window.innerWidth <= 760) return;
+  const avail = scene.clientHeight - 24;
   const h = table.getBoundingClientRect().height;
-  const f = Math.max(0.5, Math.min(1, avail / h));
+  const f = Math.max(0.8, Math.min(1, avail / h));
   table.style.setProperty('--fit', f.toFixed(3));
 }
 let fitTimer = null;
@@ -241,7 +254,7 @@ function renderGame(snap) {
         <form id="chatform" class="row"><input id="chatinput" type="text" maxlength="300" placeholder="Message…" autocomplete="off"><button class="small" type="submit">Send</button></form>
       </div>
     </aside>
-  </div>${rulesModal()}`;
+  </div>${rulesModal()}${peekModal()}`;
   const cl = $('#chatlist'); if (cl) cl.scrollTop = cl.scrollHeight;
   if (ui.drawer === 'chat') { const inp = $('#chatinput'); if (inp && ui.chatDraft) inp.value = ui.chatDraft; }
 }
@@ -256,8 +269,17 @@ function renderSeat(snap, i) {
       <div class="tray" data-fly="tray-${i}"><span class="foodrow">${cubesHtml(p.food)}</span></div>
       <div class="cats cards">${p.cats.map(cat => catWithFeeding(cat, p, false, 'xs')).join('') || '<span class="muted tiny">no cats yet</span>'}</div>
       <div class="handfan small">${hand}</div>
+      ${renderLastMove(snap, i)}
     </div>
   </div>`;
+}
+
+function renderLastMove(snap, seatIndex) {
+  const st = snap.state; const lt = st.lastTake;
+  if (!lt || lt.player !== seatIndex || st.phase !== 'playing') return '';
+  const fresh = ui.lastMoveTurn !== lt.turn; ui.lastMoveTurn = lt.turn;
+  return `<div class="lastmove ${fresh ? 'fresh' : ''}"><div class="pilelabel">${lt.player === snap.you ? 'You' : 'They'} took ${lineName(lt.line)}:</div>
+    <div class="cards">${lt.cards.map(id => cardHtml(id, 'xs', `data-fly="last-${id}"`)).join('')}</div></div>`;
 }
 
 function renderBoard(snap) {
@@ -314,23 +336,41 @@ function renderMyArea(snap) {
       ${p.feedingDone ? `<span class="muted">You are done. </span><button data-do="undone">Change my feeding</button>` : `<button data-do="autofeed">Auto-feed</button><button class="primary" data-do="done">Done feeding ✓</button>`}
       <span class="tiny muted">${st.players.filter(x => x.feedingDone).length}/${st.players.length} done</span></div>`;
   const feeding = st.phase === 'feeding';
+  const canAlloc = st.phase === 'playing' && p.cats.length > 0;
+  const need = stillNeeded(p); const needStr = FOOD_TYPES.filter(t => need[t]).map(t => `${need[t]} ${FOOD_ICON[t]}`).join('  ');
   return `<div class="myarea you">
-    <div class="nameplate"><b>${esc(p.name)}</b> <span class="tiny muted">(you)</span> ${isTurn ? '<span class="turnpill">your turn</span>' : ''} ${p.vpTokens ? `<span class="vp-tokens">💗×${p.vpTokens}</span>` : ''}</div>
+    <div class="nameplate"><b>${esc(p.name)}</b> <span class="tiny muted">(you)</span> ${isTurn ? '<span class="turnpill">your turn</span>' : ''} ${p.vpTokens ? `<span class="vp-tokens">💗×${p.vpTokens}</span>` : ''}
+      ${canAlloc ? `<button class="small ${ui.alloc ? 'on' : ''}" data-do="alloc-toggle">🍽 ${ui.alloc ? 'Done planning' : 'Plan feeding'}</button>` : ''}</div>
     ${actions}
     <div class="seat-row">
-      <div class="tray" data-fly="tray-${you}"><div class="pilelabel">Food${feeding ? ' left' : ''}</div><span class="foodrow">${cubesHtml(p.food)}</span></div>
-      ${feeding ? '' : `<div class="cats cards">${p.cats.map(cat => catWithFeeding(cat, p, false)).join('') || '<span class="muted tiny">Your cats will sit here.</span>'}</div>`}
+      <div class="tray" data-fly="tray-${you}"><div class="pilelabel">Food${feeding || ui.alloc ? ' unassigned' : ''}</div><span class="foodrow">${cubesHtml(p.food)}</span>
+        ${p.cats.length && st.phase !== 'ended' ? `<div class="needline ${needStr ? 'short' : 'ok'}">${needStr ? 'Still need: ' + needStr : 'Every cat can be fed ✓'}</div>` : ''}</div>
+      ${feeding ? '' : `<div class="cats cards">${p.cats.map(cat => catWithFeeding(cat, p, !!ui.alloc && st.phase === 'playing')).join('') || '<span class="muted tiny">Your cats will sit here.</span>'}</div>`}
+      ${renderLastMove(snap, you)}
     </div>
+    ${ui.alloc && st.phase === 'playing' ? '<div class="hint">Planning only: tap +food under a cat to set cubes aside for it, tap a cube to take it back. Nothing is final until the game ends, and you can do this at any time, even on the other player\'s turn.</div>' : ''}
   </div>`;
 }
 
 function renderHand(snap) {
   const st = snap.state; const p = st.players[snap.you];
-  const hand = sortHand(p.hand);
-  const n = hand.length; const spread = Math.min(9, 60 / Math.max(1, n));
-  return `<div class="handlayer"><div class="handfan big" style="--n:${n}">
-    ${hand.map((id, i) => { const a = (i - (n - 1) / 2) * spread; return `<div class="handslot ${ui.raised === id ? 'raised' : ''}" style="--a:${a}deg;--i:${i}" data-raise="${id}">${cardHtml(id)}</div>`; }).join('')}
-  </div><div class="handlabel tiny">${n ? `Your hand · ${n} card${n === 1 ? '' : 's'} (hidden from the others)` : 'Your hand is empty'}</div></div>`;
+  const hand = sortHand(p.hand); const n = hand.length;
+  const counts = {}; for (const id of hand) { const t = CARDS[id].type; counts[t] = (counts[t] || 0) + 1; }
+  const summary = Object.entries(counts).map(([t, c]) => `${c} ${t === 'lost' ? 'lost cat' : t === 'spray' ? 'spray bottle' : t}${c > 1 ? 's' : ''}`).join(' · ');
+  return `<div class="handtray ${ui.handOpen === false ? 'closed' : ''}">
+    <button class="handtoggle" data-do="hand-toggle" aria-expanded="${ui.handOpen !== false}">${ui.handOpen === false ? '▴' : '▾'} Your hand · ${n} card${n === 1 ? '' : 's'} <span class="tiny muted">${n ? summary : 'empty'} · hidden from the others</span></button>
+    <div class="handrow">${hand.map(id => `<button class="handcard" data-peek="${id}" aria-label="${esc(CARDS[id].name)}">${cardHtml(id, '', 'data-fly="hand-me-' + id + '"')}</button>`).join('') || '<span class="muted tiny" style="padding:8px 14px">Toys, costumes, catnip, lost cats and spray bottles you take will appear here.</span>'}</div>
+  </div>`;
+}
+function peekModal() {
+  if (!ui.peek || !CARDS[ui.peek]) return '';
+  const c = CARDS[ui.peek];
+  const blurb = { toy: 'Toys stay in your hand. At the end you score per set of different toys: 1, 3, 5, 8 or 12 points for 1 to 5 unique toys, and you may score several sets.',
+    costume: 'Costumes stay in your hand. Most costumes at the end: +6 VP (split on ties). No costume at all: −2 VP.',
+    catnip: 'Catnip stays in your hand. Exactly one: −2 VP. Two or three: +1 VP per fed cat. Four or more: +2 VP per fed cat.',
+    lost: 'On your turn, discard two lost cats to take a 2 VP token or to bring home one of the face-up stray cats.',
+    spray: 'On your turn, discard it to move the cat token: unblock a line for yourself before taking, or block the next player after taking.' }[c.type] || c.text || '';
+  return `<div class="modal-bg" data-do="peek-close"><div class="peek" onclick="event.stopPropagation()">${cardHtml(ui.peek, 'big', 'data-fly="peek"')}<p>${esc(blurb)}</p><button data-do="peek-close">Close</button></div></div>`;
 }
 
 function catWithFeeding(cat, p, editable, size = '') {
@@ -343,7 +383,7 @@ function catWithFeeding(cat, p, editable, size = '') {
   if (editable) btns = `<div class="feedbtns">${['chicken', 'tuna', 'milk', 'wild'].map(t => `<button data-feed="${cat.cardId}:${t}" ${p.food[t] > 0 && canAssign(cat, t) ? '' : 'disabled'} title="Give ${FOOD_LABEL[t]}">+${FOOD_ICON[t]}</button>`).join('')}</div>`;
   let truffle = '';
   if (c.special === 'truffle' && (editable || anyFood) && cat.food.wild > 0) truffle = `<select data-truffle="${cat.cardId}" ${editable ? '' : 'disabled'}>${FOOD_TYPES.map(t => `<option value="${t}" ${cat.truffleType === t ? 'selected' : ''}>as ${FOOD_ICON[t]}</option>`).join('')}</select>`;
-  const label = (editable || anyFood || p.feedingDone) ? `<span class="tiny ${info.fed ? 'okline' : 'muted'}">${info.fed ? '✓ fed' : 'hungry −2'}</span>` : '';
+  const label = (editable || anyFood || p.feedingDone) ? `<span class="tiny ${info.fed ? 'okline' : 'muted'}">${info.fed ? '✓ fed' : (anyFood ? 'not full yet' : 'hungry −2')}</span>` : '';
   return `<div class="cardwrap">${cardHtml(cat.cardId, `${status} ${size}`)}${label}<div class="chips">${chips}</div>${truffle}${btns}</div>`;
 }
 
@@ -363,19 +403,34 @@ function renderFeeding(snap) {
 }
 function renderFeedingWatch(snap) { return `<div class="feedmat"><div class="pilelabel">The players are feeding their cats…</div></div>`; }
 
+const REVEAL_MS = 2600;
 function renderResults(snap) {
   const r = snap.state.results; const you = snap.you;
-  const head = r.winners.length === 1 ? `🏆 ${esc(r.players[r.winners[0]].name)} wins!` : `🤝 It's a tie between ${r.winners.map(i => esc(r.players[i].name)).join(' and ')}!`;
   const labels = r.players[0].lines.map(l => l.label.replace(/\s*\(.*\)$/, ''));
-  return `<div class="results">
-    <div class="winner">${head}</div>
-    <table><thead><tr><th></th>${r.players.map(p => `<th class="n">${esc(p.name)}</th>`).join('')}</tr></thead><tbody>
-      ${labels.map((lab, li) => `<tr style="--d:${li}"><td>${esc(lab)}</td>${r.players.map(p => `<td class="n" title="${esc(p.lines[li].label)}">${p.lines[li].vp}</td>`).join('')}</tr>`).join('')}
-      <tr style="--d:${labels.length}"><td class="tiny muted">Fed cats (tiebreaker)</td>${r.players.map(p => `<td class="n tiny muted">${p.fedCount}</td>`).join('')}</tr>
-      <tr class="total" style="--d:${labels.length + 1}"><td>Total</td>${r.players.map(p => `<td class="n"><span class="countup" data-to="${p.total}">${p.total}</span></td>`).join('')}</tr>
+  const nSteps = labels.length + 2; // intro, one per category, winner
+  if (!ui.reveal || ui.reveal.game !== snap.gamesPlayed) ui.reveal = { game: snap.gamesPlayed, step: reduceMotion() ? nSteps - 1 : 0 };
+  const step = ui.reveal.step;
+  clearTimeout(ui.reveal.timer);
+  if (step < nSteps - 1) ui.reveal.timer = setTimeout(() => { ui.reveal.step++; render({ silent: true }); }, step === 0 ? 1800 : REVEAL_MS);
+  const shown = Math.min(step, labels.length); // categories revealed so far
+  const running = r.players.map(p => p.lines.slice(0, shown).reduce((a, l) => a + l.vp, 0));
+  const lead = Math.max(...running);
+  const winnerStep = step >= nSteps - 1;
+  const head = winnerStep ? (r.winners.length === 1 ? `🏆 ${esc(r.players[r.winners[0]].name)} wins!` : `🤝 It's a tie between ${r.winners.map(i => esc(r.players[i].name)).join(' and ')}!`) : step === 0 ? 'The cats are fed. Let\'s count the points…' : `${labels[shown - 1]}…`;
+  const tieNote = winnerStep && r.winners.length === 1 && r.players.filter(p => p.total === r.players[r.winners[0]].total).length > 1 ? `<div class="tiny muted">Tied on points: ${esc(r.players[r.winners[0]].name)} fed more cats.</div>` : '';
+  const confetti = winnerStep && !reduceMotion() ? `<div class="confetti" aria-hidden="true">${Array.from({ length: 28 }, (_, i) => `<span style="--x:${(i / 28) * 100}%;--d:${(i % 7) * .12}s;--r:${(i * 37) % 360}deg">${['💗', '🐾', '✨', '🐈', '🎉'][i % 5]}</span>`).join('')}</div>` : '';
+  return `<div class="results ${winnerStep ? 'final' : ''}">
+    ${confetti}
+    <div class="winner ${winnerStep ? 'big' : ''}">${head}</div>
+    <table><thead><tr><th></th>${r.players.map((p, i) => `<th class="n ${winnerStep && r.winners.includes(i) ? 'champ' : ''}">${esc(p.name)}</th>`).join('')}</tr></thead><tbody>
+      ${labels.map((lab, li) => li < shown ? `<tr class="${li === shown - 1 && !winnerStep ? 'justnow' : ''}"><td>${esc(lab)} <span class="tiny muted">${r.players.map(p => p.lines[li].label.match(/\((.*)\)/)?.[1]).filter(Boolean).length && li > 0 ? '' : ''}</span></td>${r.players.map(p => `<td class="n ${p.lines[li].vp < 0 ? 'neg' : p.lines[li].vp > 0 ? 'pos' : ''}" title="${esc(p.lines[li].label)}"><span class="countup" data-to="${p.lines[li].vp}">${p.lines[li].vp > 0 ? '+' : ''}${p.lines[li].vp}</span></td>`).join('')}</tr>` : `<tr class="pending"><td>${esc(lab)}</td>${r.players.map(() => '<td class="n">?</td>').join('')}</tr>`).join('')}
+      <tr class="total"><td>${winnerStep ? 'Total' : 'So far'}</td>${r.players.map((p, i) => `<td class="n ${running[i] === lead && shown > 0 ? 'leading' : ''}"><span class="countup" data-to="${running[i]}">${running[i]}</span></td>`).join('')}</tr>
+      ${winnerStep ? `<tr><td class="tiny muted">Fed cats (tiebreaker)</td>${r.players.map(p => `<td class="n tiny muted">${p.fedCount}</td>`).join('')}</tr>` : ''}
     </tbody></table>
-    <details><summary class="tiny">Cat by cat</summary>${r.players.map(p => `<div class="tiny"><b>${esc(p.name)}:</b> ${p.cats.map(c => `${esc(c.name)} ${c.fed ? '' : '(hungry) '}${c.vp >= 0 ? '+' : ''}${c.vp}`).join(', ') || 'no cats'}</div>`).join('')}</details>
-    ${you === 0 ? '<p><button class="primary" data-do="again">Play again</button></p>' : '<p class="muted tiny">The host can start a new game.</p>'}
+    ${tieNote}
+    ${winnerStep ? `<details><summary class="tiny">Cat by cat</summary>${r.players.map(p => `<div class="tiny"><b>${esc(p.name)}:</b> ${p.cats.map(c => `${esc(c.name)} ${c.fed ? '' : '(hungry) '}${c.vp >= 0 ? '+' : ''}${c.vp}`).join(', ') || 'no cats'}</div>`).join('')}</details>
+      ${you === 0 ? '<p><button class="primary" data-do="again">Play again</button></p>' : '<p class="muted tiny">The host can start a new game.</p>'}`
+    : `<p class="actions"><button class="small" data-do="reveal-next">Next ▸</button><button class="small" data-do="reveal-skip">Skip to the winner</button></p>`}
   </div>`;
 }
 
@@ -396,14 +451,15 @@ function rulesModal() {
 // ---------- flight animations (FLIP with screen-space ghosts) ----------
 function snapshotRects() {
   const m = new Map();
-  for (const el of app.querySelectorAll('[data-fly]')) { const r = el.getBoundingClientRect(); if (r.width) m.set(el.dataset.fly, { r, html: el.outerHTML, cls: el.className }); }
+  for (const el of app.querySelectorAll('[data-fly]')) { const r = el.getBoundingClientRect(); if (r.width) m.set(el.dataset.fly, { r, html: el.outerHTML, cls: el.className, zone: zoneOf(el) }); }
   return m;
 }
+const zoneOf = el => { const z = el.closest('.slot,.seat,.myarea,.strays,.lastmove,.handrow,.discard,.feedmat,.board'); return z ? (z.classList.contains('seat') ? 'seat' + z.dataset.seat : z.className.split(' ')[0]) : 'page'; };
 function animateFlights(prev) {
   if (reduceMotion() || !prev.size) return;
   const layer = document.createElement('div'); layer.className = 'flightlayer'; document.body.appendChild(layer);
   const now = new Map();
-  for (const el of app.querySelectorAll('[data-fly]')) { const r = el.getBoundingClientRect(); if (r.width) now.set(el.dataset.fly, { el, r }); }
+  for (const el of app.querySelectorAll('[data-fly]')) { const r = el.getBoundingClientRect(); if (r.width) now.set(el.dataset.fly, { el, r, zone: zoneOf(el) }); }
   const deck = now.get('deck')?.r || prev.get('deck')?.r;
   let delay = 0; let any = false;
   const fly = (fromR, toR, html, opts = {}) => {
@@ -420,12 +476,13 @@ function animateFlights(prev) {
     return anim.finished.then(() => g.remove()).catch(() => g.remove());
   };
   const hide = (el, ms) => { el.style.visibility = 'hidden'; setTimeout(() => { el.style.visibility = ''; }, ms); };
-  const isCard = k => /^(cat|food|toy|costume|catnip|spray|lost)-\d+$/.test(k);
+  const isCard = k => /^(cat|food|toy|costume|catnip|spray|lost)-\d+$/.test(k) || k.startsWith('hand-me-');
   for (const [k, cur] of now) {
     const old = prev.get(k);
     if (old) {
       const moved = Math.abs(old.r.left - cur.r.left) > 4 || Math.abs(old.r.top - cur.r.top) > 4;
-      if (moved && (isCard(k) || k === 'token')) { hide(cur.el, 700); fly(old.r, cur.r, old.html, { duration: k === 'token' ? 500 : 700 }); }
+      const changedZone = old.zone !== cur.zone;
+      if (moved && ((isCard(k) && changedZone) || k === 'token')) { hide(cur.el, 700); fly(old.r, cur.r, old.html, { duration: k === 'token' ? 500 : 700 }); }
     } else if (isCard(k) && cur.el.closest('.slot') && deck) {
       hide(cur.el, 560 + delay); fly(deck, cur.r, cardBack(), { flip: true, duration: 560, delay }); delay += 90;
     }
@@ -440,15 +497,15 @@ function animateFlights(prev) {
   }
   if (any) setTimeout(() => layer.remove(), 1600); else layer.remove();
   // Count-up on totals
-  for (const el of app.querySelectorAll('.countup')) { const to = +el.dataset.to; const t0 = performance.now(); const step = t => { const k = Math.min(1, (t - t0) / 900); el.textContent = Math.round(to * (1 - Math.pow(1 - k, 3))); if (k < 1) requestAnimationFrame(step); }; requestAnimationFrame(step); }
+
 }
 
 // ---------- events ----------
 app.addEventListener('click', async e => {
-  const t = e.target.closest('[data-do],[data-line],[data-stray],[data-feed],[data-unfeed],[data-moon],[data-moonundo],[data-raise]');
+  const t = e.target.closest('[data-do],[data-line],[data-stray],[data-feed],[data-unfeed],[data-moon],[data-moonundo],[data-peek]');
   if (!t) return;
   const d = t.dataset;
-  if (d.raise !== undefined && !t.closest('[data-do]')) { ui.raised = ui.raised === d.raise ? null : d.raise; render({ silent: true }); return; }
+  if (d.peek) { ui.peek = d.peek; render({ silent: true }); return; }
   if (d.line) {
     const [kind, index] = d.line.split(':'); const line = { kind, index: Number(index) };
     const st = ui.snap.state;
@@ -493,6 +550,11 @@ app.addEventListener('click', async e => {
     case 'drawer-log': ui.drawer = ui.drawer === 'log' ? null : 'log'; render({ silent: true }); break;
     case 'drawer-chat': ui.drawer = ui.drawer === 'chat' ? null : 'chat'; render({ silent: true }); $('#chatinput')?.focus(); break;
     case 'drawer-close': ui.drawer = null; render({ silent: true }); break;
+    case 'hand-toggle': ui.handOpen = ui.handOpen === false; render({ silent: true }); break;
+    case 'alloc-toggle': ui.alloc = !ui.alloc; render({ silent: true }); break;
+    case 'reveal-next': if (ui.reveal) { ui.reveal.step++; render({ silent: true }); } break;
+    case 'reveal-skip': if (ui.reveal) { ui.reveal.step = 99; render({ silent: true }); } break;
+    case 'peek-close': ui.peek = null; render({ silent: true }); break;
   }
 });
 app.addEventListener('change', e => {

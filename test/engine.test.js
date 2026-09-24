@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { newGame, applyAction, availableLines, computeScores, lineSlots, RuleError, applyAutoFeed } from '../public/engine.js';
+import { newGame, applyAction, availableLines, computeScores, lineSlots, RuleError, applyAutoFeed, stillNeeded } from '../public/engine.js';
 import { CARDS, ALL_CARDS, deckForPlayers } from '../public/cards.js';
 
 const two = () => newGame({ players: [{ id: 'a', name: 'Ann' }, { id: 'b', name: 'Bo' }], seed: 42, startingPlayer: 0 });
@@ -175,4 +175,23 @@ test('auto feed feeds what it can', () => {
   applyAutoFeed(p);
   assert.equal(p.cats[0].food.tuna, 2); assert.equal(p.cats[0].food.milk, 1); assert.equal(p.cats[1].food.tuna, 1);
   assert.equal(p.food.tuna, 0);
+});
+
+test('food can be assigned during play, is kept at game end, and stillNeeded reports the gap', () => {
+  let s = two();
+  s = applyAction(s, 1, { type: 'placeToken', kind: 'row', index: 0 });
+  s.players[0].cats = [cat('Sox'), cat('Bell')];
+  s.players[0].food = { chicken: 0, tuna: 1, milk: 0, wild: 1 };
+  const sum = n => n.chicken + n.tuna + n.milk;
+  assert.equal(sum(stillNeeded(s.players[0])), 2); // Sox 2 tuna 1 milk + Bell 1 chicken = 4, minus 1 tuna and 1 wild
+  assert.throws(() => applyAction(s, 1, { type: 'feed', cardId: byName('Sox'), food: 'tuna' }), /Not your cat/);
+  s = applyAction(s, 0, { type: 'feed', cardId: byName('Sox'), food: 'tuna' });
+  assert.equal(s.players[0].cats[0].food.tuna, 1);
+  assert.equal(sum(stillNeeded(s.players[0])), 2);
+  assert.equal(s.lastTake, null);
+  s = applyAction(s, 0, { type: 'take', kind: 'row', index: 1 });
+  assert.equal(s.lastTake.player, 0); assert.equal(s.lastTake.cards.length, 3);
+  // play to the end; the assignment survives
+  while (s.phase === 'playing') { const line = availableLines(s)[0]; s = applyAction(s, s.current, { type: 'take', ...line }); if (s.phase === 'playing' && s.turn.taken) s = applyAction(s, s.current, { type: 'endTurn' }); }
+  assert.equal(s.players[0].cats.find(c => c.cardId === byName('Sox')).food.tuna, 1);
 });
