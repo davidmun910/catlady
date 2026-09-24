@@ -244,3 +244,5 @@ select { width: auto; max-width: 100%; } a { color: var(--accent2); }
 .confetti { position: absolute; inset: 0; pointer-events: none; overflow: hidden; }
 .confetti span { position: absolute; left: var(--x); top: -40px; font-size: 22px; animation: fall 2.8s ease-in var(--d) both; transform: rotate(var(--r)); }
 @keyframes fall { to { transform: translateY(120vh) rotate(calc(var(--r) + 360deg)); opacity: .2; } }
+.vpimg { width: 44px; height: 44px; object-fit: contain; filter: drop-shadow(2px 3px 2px rgba(0,0,0,.3)); vertical-align: middle; }
+.vp-tokens .vpimg, .actions .vpimg { width: 26px; height: 26px; }

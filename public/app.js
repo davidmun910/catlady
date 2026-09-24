@@ -82,6 +82,7 @@ function catSvg(colors) {
   <path d="M10 40 L24 42 M10 46 L24 45 M70 40 L56 42 M70 46 L56 45" stroke="#2a2430" stroke-width="1.4" stroke-linecap="round"/></svg>`;
 }
 const tokenSvg = `<svg viewBox="0 0 64 64" aria-label="cat token"><path d="M14 58 C4 58 4 36 12 30 L12 12 L22 22 L36 22 L46 12 L46 30 C50 34 52 42 52 48 C58 44 62 50 58 56 C56 59 52 59 50 57 C48 58 46 58 44 58 Z" fill="#9a9aa6" stroke="#2a2430" stroke-width="2.5" stroke-linejoin="round"/></svg>`;
+const vpHtml = () => hasArt(EXTRA_ART.vp) ? `<img class="vpimg" src="${EXTRA_ART.vp}" alt="2 VP token">` : '<span class="heart">💗</span>';
 const tokenHtml = () => `<span class="token" data-fly="token">${hasArt(EXTRA_ART.token) ? `<img src="${EXTRA_ART.token}" alt="cat token">` : tokenSvg}</span>`;
 function needHtml(need) { if (!need) return '?'; return FOOD_TYPES.filter(t => need[t]).map(t => `${need[t]} ${FOOD_ICON[t]}`).join(' '); }
 function vpLabel(c) { if (c.special === 'mostFed') return '7/3'; return c.vp == null ? '✱' : c.vp; }
@@ -264,7 +265,7 @@ function renderSeat(snap, i) {
   const showFeeding = st.phase === 'feeding' || st.phase === 'ended';
   const hand = p.hand ? sortHand(p.hand).map(id => cardHtml(id, 'xs')).join('') : Array.from({ length: p.handCount }, (_, k) => cardBack('xs', `data-fly="hand-${i}-${k}"`)).join('');
   return `<div class="seat" data-seat="${i}">
-    <div class="nameplate"><span class="dot ${seat?.connected ? 'on' : ''}"></span> ${esc(p.name)} ${st.current === i && st.phase === 'playing' ? '<span class="turnpill">their turn</span>' : ''} ${p.vpTokens ? `<span class="vp-tokens">💗×${p.vpTokens}</span>` : ''} ${showFeeding ? `<span class="tiny muted">${p.feedingDone ? 'done feeding' : 'feeding…'}</span>` : ''}</div>
+    <div class="nameplate"><span class="dot ${seat?.connected ? 'on' : ''}"></span> ${esc(p.name)} ${st.current === i && st.phase === 'playing' ? '<span class="turnpill">their turn</span>' : ''} ${p.vpTokens ? `<span class="vp-tokens">${vpHtml()}×${p.vpTokens}</span>` : ''} ${showFeeding ? `<span class="tiny muted">${p.feedingDone ? 'done feeding' : 'feeding…'}</span>` : ''}</div>
     <div class="seat-row">
       <div class="tray" data-fly="tray-${i}"><span class="foodrow">${cubesHtml(p.food)}</span></div>
       <div class="cats cards">${p.cats.map(cat => catWithFeeding(cat, p, false, 'xs')).join('') || '<span class="muted tiny">no cats yet</span>'}</div>
@@ -304,7 +305,7 @@ function renderBoard(snap) {
     <div class="piles">
       <div class="deck" data-fly="deck" style="--layers:${deckLayers}"><div class="stack">${Array.from({ length: Math.max(1, deckLayers) }, () => cardBack()).join('')}</div><div class="pilelabel">Deck · ${st.deckCount}</div></div>
       <div class="discard"><div class="stack">${st.discard.length ? cardHtml(st.discard[st.discard.length - 1], '', 'data-fly="discard-top"') : '<div class="empty card"></div>'}</div><div class="pilelabel">Discard · ${st.discard.length}</div></div>
-      <div class="vp-pile"><span class="heart">💗</span><div class="pilelabel">${st.vpTokensLeft} × 2 VP</div></div>
+      <div class="vp-pile">${vpHtml()}<div class="pilelabel">${st.vpTokensLeft} × 2 VP</div></div>
     </div>
     <div class="board">${cells.join('')}</div>
     <div class="strays">
@@ -328,7 +329,7 @@ function renderMyArea(snap) {
     const spray = hasCard(p, 'spray');
     actions = `<div class="actions">
       ${spray ? `<button data-do="spray">🧴 ${st.turn.taken ? 'Block a line for the next player' : 'Move the cat token'}</button>` : ''}
-      ${lostCount >= 2 ? `<button data-do="lost-vp" ${canLost && st.vpTokensLeft > 0 ? '' : 'disabled'}>📋📋 → 💗 2 VP token</button><button data-do="lost-stray" ${canLost && st.strays.length > 0 ? '' : 'disabled'}>📋📋 → find a stray cat</button>` : ''}
+      ${lostCount >= 2 ? `<button data-do="lost-vp" ${canLost && st.vpTokensLeft > 0 ? '' : 'disabled'}>📋📋 → ${vpHtml()} 2 VP token</button><button data-do="lost-stray" ${canLost && st.strays.length > 0 ? '' : 'disabled'}>📋📋 → find a stray cat</button>` : ''}
       ${st.turn.taken ? `<button class="primary" data-do="end">Pass, I'm done</button>` : ''}
     </div>`;
   }
@@ -339,7 +340,7 @@ function renderMyArea(snap) {
   const canAlloc = st.phase === 'playing' && p.cats.length > 0;
   const need = stillNeeded(p); const needStr = FOOD_TYPES.filter(t => need[t]).map(t => `${need[t]} ${FOOD_ICON[t]}`).join('  ');
   return `<div class="myarea you">
-    <div class="nameplate"><b>${esc(p.name)}</b> <span class="tiny muted">(you)</span> ${isTurn ? '<span class="turnpill">your turn</span>' : ''} ${p.vpTokens ? `<span class="vp-tokens">💗×${p.vpTokens}</span>` : ''}
+    <div class="nameplate"><b>${esc(p.name)}</b> <span class="tiny muted">(you)</span> ${isTurn ? '<span class="turnpill">your turn</span>' : ''} ${p.vpTokens ? `<span class="vp-tokens">${vpHtml()}×${p.vpTokens}</span>` : ''}
       ${canAlloc ? `<button class="small ${ui.alloc ? 'on' : ''}" data-do="alloc-toggle">🍽 ${ui.alloc ? 'Done planning' : 'Plan feeding'}</button>` : ''}</div>
     ${actions}
     <div class="seat-row">
